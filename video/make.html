@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tanda video source</title>
+<style>
+  body { margin: 0; padding: 16px; background: #111; color: #eee; font: 14px system-ui, sans-serif; }
+  #c { width: 100%; max-width: 1280px; aspect-ratio: 16 / 9; display: block; border-radius: 8px; }
+  button { margin: 10px 8px 0 0; padding: 8px 14px; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1280" height="720"></canvas>
+<button id="preview">Preview</button><button id="render">Render MP4</button> <span id="st"></span>
+<script type="module">
+/* "The savings circle nobody can run off with": a 74-second animated short for the BCH BLAZE Media track.
+   Everything is drawn on a canvas and encoded to MP4 (H.264 + AAC) in the browser with WebCodecs. */
+const W = 1280, H = 720, FPS = 30;
+const cv = document.getElementById('c'), x = cv.getContext('2d');
+const st = (m) => { document.getElementById('st').textContent = m; };
+const C = { bg1: '#1c120d', bg2: '#0b0706', ink: '#fff7ed', muted: '#d6c3b3', gold: '#fbbf24', goldD: '#b45309', accent: '#f97316', red: '#ef4444', green: '#22c55e', member: '#e8d5b5', memberInk: '#5b2a12' };
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const ease = (t) => { t = clamp(t); return t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; };
+const pop = (t) => { t = clamp(t); const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); };
+const lerp = (a, b, t) => a + (b - a) * t;
+
+function bg(tint = 0) {
+  x.fillStyle = C.bg2; x.fillRect(0, 0, W, H);
+  const g = x.createRadialGradient(W / 2, H * 1.15, 50, W / 2, H * 0.7, H);
+  g.addColorStop(0, tint > 0 ? `rgba(185,28,28,${0.55 + 0.3 * tint})` : 'rgba(194,65,12,.55)');
+  g.addColorStop(0.55, C.bg1); g.addColorStop(1, C.bg2);
+  x.fillStyle = g; x.fillRect(0, 0, W, H);
+}
+function text(s, px, py, size, color = C.ink, weight = 800, align = 'center', alpha = 1) {
+  x.save(); x.globalAlpha *= alpha; x.fillStyle = color; x.textAlign = align; x.textBaseline = 'middle';
+  x.font = `${weight} ${size}px "Segoe UI", system-ui, sans-serif`; x.fillText(s, px, py); x.restore();
+}
+// Caption block: English line plus a Spanish line, fading in at `t0` of the scene.
+function caption(t, en, es, t0 = 0.2, y = 628) {
+  const a = ease((t - t0) / 0.6);
+  x.save(); x.globalAlpha *= a;
+  x.fillStyle = 'rgba(0,0,0,.55)'; x.fillRect(0, y - 52, W, 104);
+  text(en, W / 2, y - 14 + (1 - a) * 10, 34, C.ink, 800);
+  text(es, W / 2, y + 26 + (1 - a) * 10, 22, C.muted, 500);
+  x.restore();
+}
+const N = 10, CX = 640, CY = 318, R = 205;
+const NAMES = ['Ana', 'Beto', 'Carla', 'Dani', 'Elena', 'Fer', 'Gaby', 'Hugo', 'Inés', 'Juan'];
+const pos = (i) => { const a = -Math.PI / 2 + (i / N) * Math.PI * 2; return [CX + R * Math.cos(a), CY + R * Math.sin(a)]; };
+function member(i, scale = 1, fill = C.member, inkCol = C.memberInk, label = NAMES[i][0], dx = 0) {
+  const [px, py] = pos(i); if (scale <= 0) return;
+  x.save(); x.translate(px + dx, py); x.scale(scale, scale);
+  x.fillStyle = fill; x.beginPath(); x.arc(0, 0, 32, 0, 7); x.fill();
+  text(label, 0, 1, 26, inkCol, 800);
+  x.restore();
+}
+function ring(alpha = 1) {
+  x.save(); x.globalAlpha *= alpha; x.strokeStyle = 'rgba(251,191,36,.35)'; x.lineWidth = 4; x.setLineDash([14, 12]);
+  x.beginPath(); x.arc(CX, CY, R, 0, 7); x.stroke(); x.restore();
+}
+function pot(px, py, r, sym = '$', fill = C.gold) {
+  if (r <= 0) return;
+  x.save(); x.fillStyle = fill; x.strokeStyle = C.goldD; x.lineWidth = Math.max(3, r * 0.08);
+  x.beginPath(); x.arc(px, py, r, 0, 7); x.fill(); x.stroke();
+  text(sym, px, py + r * 0.04, r * 1.05, '#7c2d12', 900); x.restore();
+}
+function coin(px, py, r = 9) { x.fillStyle = C.gold; x.beginPath(); x.arc(px, py, r, 0, 7); x.fill(); x.strokeStyle = C.goldD; x.lineWidth = 2; x.stroke(); }
+function check(px, py, s = 1) {
+  x.save(); x.translate(px, py); x.scale(s, s); x.fillStyle = C.green; x.beginPath(); x.arc(0, 0, 16, 0, 7); x.fill();
+  x.strokeStyle = '#fff'; x.lineWidth = 4; x.lineCap = 'round'; x.beginPath(); x.moveTo(-7, 0); x.lineTo(-2, 6); x.lineTo(8, -6); x.stroke(); x.restore();
+}
+function lock(px, py, s, alpha = 1) {
+  x.save(); x.globalAlpha *= alpha; x.translate(px, py); x.scale(s, s);
+  x.strokeStyle = C.green; x.lineWidth = 10; x.beginPath(); x.arc(0, -92, 46, Math.PI, 0); x.stroke();
+  x.fillStyle = 'rgba(34,197,94,.18)'; x.strokeStyle = C.green; x.lineWidth = 6;
+  x.beginPath(); x.roundRect(-110, -95, 220, 190, 26); x.fill(); x.stroke(); x.restore();
+}
+
+const SCENES = [
+  { d: 6, f(t) { // 1. hook
+    bg();
+    pot(CX, CY, 70 * pop(t / 1.2), '$');
+    for (let i = 0; i < 5; i++) { const k = clamp((t - 0.8 - i * 0.25) / 1.4); if (k > 0) coin(lerp(CX - 300 + i * 150, CX, ease(k)), lerp(120, CY, ease(k)) - Math.sin(k * Math.PI) * 60); }
+    caption(t, 'Every week, abuelas all over Mexico save in a tanda.', 'Cada semana, abuelitas de todo México ahorran en una tanda.', 0.6);
+  } },
+  { d: 9, f(t) { // 2. how a tanda works
+    bg(); ring(ease(t / 1));
+    for (let i = 0; i < N; i++) member(i, pop((t - i * 0.1) / 0.6));
+    const fill = clamp((t - 2) / 3);
+    for (let i = 0; i < N; i++) { const k = clamp((t - 2 - i * 0.22) / 1.2); if (k > 0 && k < 1) { const [px, py] = pos(i); coin(lerp(px, CX, ease(k)), lerp(py, CY, ease(k))); } }
+    const fly = ease((t - 6) / 1.4); const [tx, ty] = pos(0);
+    pot(lerp(CX, tx, fly), lerp(CY, ty - 70, fly), (30 + 50 * fill) * (1 - 0.35 * fly), '$');
+    if (t > 7.4) check(tx + 30, ty - 28, pop((t - 7.4) / 0.5));
+    caption(t, '10 friends chip in every week. Each week, one takes the whole pot.', '10 amigas ponen dinero cada semana. Cada semana, una se lleva todo.', 0.8);
+  } },
+  { d: 8, f(t) { // 3. it is everywhere
+    bg();
+    const words = [['tanda', 'Mexico'], ['susu', 'Ghana'], ['chit fund', 'India'], ['gye', 'Korea'], ['hui', 'China'], ['tontine', 'Senegal'], ['sou-sou', 'Caribbean'], ['pasanaku', 'Bolivia'], ['arisan', 'Indonesia']];
+    words.forEach(([w, c], i) => {
+      const a = -Math.PI / 2 + (i / words.length) * Math.PI * 2, rr = 230;
+      const s = pop((t - 0.3 - i * 0.28) / 0.6); if (s <= 0) return;
+      const px = CX + rr * 1.35 * Math.cos(a), py = CY - 10 + rr * 0.95 * Math.sin(a);
+      x.save(); x.translate(px, py); x.scale(s, s); text(w, 0, -10, 40, i === 0 ? C.accent : C.ink, 800); text(c, 0, 26, 20, C.muted, 500); x.restore();
+    });
+    pot(CX, CY - 10, 60 * pop((t - 0.2) / 0.8), '$');
+    caption(t, 'Hundreds of millions of people save this way.', 'Cientos de millones de personas ahorran así.', 1.2);
+  } },
+  { d: 10, f(t) { // 4. the betrayal
+    const red = clamp((t - 4) / 2);
+    bg(red); ring(1 - red * 0.5);
+    const gone = ease((t - 5) / 2.6);
+    for (let i = 1; i < N; i++) member(i, 1, C.member, C.memberInk, t > 7.6 ? '?' : NAMES[i][0]);
+    const [ox, oy] = pos(0);
+    const take = ease((t - 2.4) / 1.4);
+    pot(lerp(CX, ox + 46, take) + gone * 760, lerp(CY, oy + 10, take), 80 - 30 * take, '$');
+    member(0, 1, C.accent, '#fff', 'A', gone * 760);
+    if (t < 5) text('organizer', ox, oy - 52, 20, C.accent, 700, 'center', ease((t - 0.6) / 0.6));
+    caption(t, 'Until the organizer runs off with the pot.', 'Hasta que la organizadora se va con el dinero.', 0.8);
+  } },
+  { d: 11, f(t) { // 5. the idea
+    bg(); ring();
+    for (let i = 0; i < N; i++) member(i, 1);
+    const shake = t > 6.2 && t < 7.4 ? Math.sin(t * 60) * 8 : 0;
+    pot(CX + shake, CY, 74, '$');
+    lock(CX + shake, CY + 8, 0.82 * pop((t - 2.6) / 0.8), ease((t - 2.6) / 0.5));
+    const [ox, oy] = pos(0);
+    const reach = Math.sin(clamp((t - 5.2) / 2.2) * Math.PI);
+    member(0, 1, C.accent, '#fff', 'A');
+    if (reach > 0.01) { x.strokeStyle = C.accent; x.lineWidth = 8; x.lineCap = 'round'; x.beginPath(); x.moveTo(ox, oy + 30); x.lineTo(ox, lerp(oy + 30, CY - 112, reach)); x.stroke(); }
+    if (t > 6.2 && t < 8.6) { text('✗  not your turn', CX + 200, CY - 120, 34, C.red, 800, 'left', ease((t - 6.2) / 0.3)); }
+    caption(t, 'What if the pot lived in a contract that can only pay whoever’s turn it is?', '¿Y si el bote viviera en un contrato que solo le paga a quien le toca?', 0.6);
+  } },
+  { d: 12, f(t) { // 6. on Bitcoin Cash
+    bg(); ring();
+    const round = Math.floor(clamp((t - 1.2) / 3.2, 0, 2.999));
+    for (let i = 0; i < N; i++) member(i, 1, i < round ? '#bbf7d0' : C.member);
+    const k = ((t - 1.2) % 3.2) / 3.2;
+    for (let i = 0; i < round; i++) { const [px, py] = pos(i); check(px + 26, py - 26, 1); }
+    if (t > 1.2) {
+      for (let i = 0; i < N; i++) { const kk = clamp((k - i * 0.02) / 0.35); if (kk > 0 && kk < 1) { const [px, py] = pos(i); coin(lerp(px, CX, ease(kk)), lerp(py, CY, ease(kk)), 7); } }
+      const fly = ease((k - 0.55) / 0.35); const [tx, ty] = pos(round);
+      pot(lerp(CX, tx, fly), lerp(CY, ty, fly), 62 * (1 - 0.5 * fly), '₿');
+      if (k > 0.55) text(`Round ${round + 1}  →  ${NAMES[round]}`, CX, CY + 96, 26, C.gold, 800, 'center', ease((k - 0.55) / 0.2));
+    } else pot(CX, CY, 62 * pop(t / 0.8), '₿');
+    lock(CX, CY + 8, 0.82, 0.55);
+    caption(t, 'On Bitcoin Cash, a covenant enforces every turn.', 'En Bitcoin Cash, un contrato hace cumplir cada turno.', 0.4);
+  } },
+  { d: 9, f(t) { // 7. the promise
+    bg();
+    const lines = [['No bank.', 'Sin banco.'], ['No boss.', 'Sin jefe.'], ['No running off with the pot.', 'Sin que nadie se vaya con el dinero.']];
+    lines.forEach(([en, es], i) => {
+      const a = ease((t - 0.4 - i * 1.6) / 0.6);
+      text(en, W / 2, 190 + i * 130 + (1 - a) * 16, 64, i === 2 ? C.gold : C.ink, 900, 'center', a);
+      text(es, W / 2, 240 + i * 130 + (1 - a) * 16, 24, C.muted, 500, 'center', a);
+    });
+  } },
+  { d: 9, f(t) { // 8. call to action
+    bg();
+    const a = pop(t / 0.9);
+    x.save(); x.translate(W / 2, 200); x.scale(a, a);
+    x.fillStyle = '#c2410c'; x.beginPath(); x.roundRect(-64, -64, 128, 128, 28); x.fill();
+    x.strokeStyle = '#fff7ed'; x.lineWidth = 7; x.beginPath(); x.arc(0, 0, 38, 0, 7); x.stroke(); pot(0, 0, 20, '₿');
+    x.restore();
+    text('Tanda', W / 2, 340, 92, C.ink, 900, 'center', ease((t - 0.5) / 0.6));
+    text('The savings circle nobody can run off with', W / 2, 412, 34, C.gold, 700, 'center', ease((t - 1) / 0.6));
+    text('La tanda que nadie se puede llevar', W / 2, 452, 22, C.muted, 500, 'center', ease((t - 1.2) / 0.6));
+    text('wwaterfall2027.github.io/bch-tanda', W / 2, 540, 32, C.ink, 800, 'center', ease((t - 2) / 0.6));
+    text('Built on Bitcoin Cash · BCH BLAZE 2026', W / 2, 590, 22, C.muted, 600, 'center', ease((t - 2.4) / 0.6));
+  } },
+];
+const TOTAL = SCENES.reduce((s, sc) => s + sc.d, 0);
+
+function drawFrame(sec) {
+  x.globalAlpha = 1; x.fillStyle = C.bg2; x.fillRect(0, 0, W, H); // start every frame from solid black
+  let acc = 0;
+  for (const s of SCENES) {
+    if (sec < acc + s.d) {
+      const local = sec - acc;
+      x.save(); x.globalAlpha = clamp(Math.min(local / 0.35, (s.d - local) / 0.35)); s.f(local); x.restore();
+      break;
+    }
+    acc += s.d;
+  }
+  x.fillStyle = C.accent; x.fillRect(0, H - 4, W * (sec / TOTAL), 4);
+}
+
+/* ---- soundtrack: a soft marimba-style loop, I–V–vi–IV in C, rendered offline ---- */
+async function soundtrack(sampleRate = 48000) {
+  const ctx = new OfflineAudioContext(2, Math.ceil(TOTAL * sampleRate), sampleRate);
+  const master = ctx.createGain(); master.gain.value = 0.32; master.connect(ctx.destination);
+  master.gain.setValueAtTime(0.32, TOTAL - 3); master.gain.linearRampToValueAtTime(0, TOTAL);
+  const hz = (m) => 440 * Math.pow(2, (m - 69) / 12);
+  function pluck(t, midi, vel = 0.5, dur = 0.9) {
+    for (const [mult, amp] of [[1, 1], [4, 0.18], [10, 0.05]]) {
+      const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = hz(midi) * mult;
+      const g = ctx.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vel * amp, t + 0.006);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur / mult ** 0.3);
+      o.connect(g).connect(master); o.start(t); o.stop(t + dur + 0.05);
+    }
+  }
+  const bpm = 104, beat = 60 / bpm;
+  const chords = [[60, 64, 67], [55, 59, 62], [57, 60, 64], [53, 57, 60]]; // C G Am F
+  const melody = [76, 74, 72, 74, 76, 76, 79, 76, 74, 72, 71, 72, 74, 72, 69, 67];
+  for (let bar = 0, t = 0.3; t < TOTAL - 2; bar++) {
+    const ch = chords[bar % 4];
+    pluck(t, ch[0] - 12, 0.55, 1.6);
+    for (let s = 0; s < 8; s++) {
+      const tt = t + s * beat / 2;
+      pluck(tt, ch[[0, 1, 2, 1, 0, 2, 1, 2][s]] + 12, s % 2 ? 0.16 : 0.22, 0.7);
+      if (bar >= 4 && s % 2 === 0) pluck(tt, melody[(bar * 4 + s / 2) % melody.length], 0.2, 0.9);
+    }
+    t += beat * 4;
+  }
+  return ctx.startRendering();
+}
+
+let raf;
+document.getElementById('preview').onclick = () => {
+  cancelAnimationFrame(raf); const start = performance.now();
+  const loop = () => { const s = (performance.now() - start) / 1000; drawFrame(s % TOTAL); raf = requestAnimationFrame(loop); };
+  loop();
+};
+
+async function render() {
+  cancelAnimationFrame(raf);
+  const { Muxer, ArrayBufferTarget } = await import('https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/+esm');
+  const vcfg = { codec: 'avc1.640028', width: W, height: H, bitrate: 4_000_000, framerate: FPS, avc: { format: 'avc' } };
+  if (!(await VideoEncoder.isConfigSupported(vcfg)).supported) throw new Error('H.264 encoding not supported here');
+  const SR = 48000;
+  const acfg = { codec: 'mp4a.40.2', sampleRate: SR, numberOfChannels: 2, bitrate: 128000 };
+  const audioOk = typeof AudioEncoder !== 'undefined' && (await AudioEncoder.isConfigSupported(acfg)).supported;
+  const target = new ArrayBufferTarget();
+  const muxer = new Muxer({ target, video: { codec: 'avc', width: W, height: H }, ...(audioOk ? { audio: { codec: 'aac', sampleRate: SR, numberOfChannels: 2 } } : {}), fastStart: 'in-memory' });
+  const venc = new VideoEncoder({ output: (c, m) => muxer.addVideoChunk(c, m), error: (e) => { throw e; } });
+  venc.configure(vcfg);
+  const frames = Math.round(TOTAL * FPS);
+  for (let i = 0; i < frames; i++) {
+    drawFrame(i / FPS);
+    const vf = new VideoFrame(cv, { timestamp: Math.round(i * 1e6 / FPS), duration: Math.round(1e6 / FPS) });
+    venc.encode(vf, { keyFrame: i % (FPS * 2) === 0 }); vf.close();
+    while (venc.encodeQueueSize > 20) await new Promise((r) => setTimeout(r, 5));
+    if (i % 60 === 0) st(`video ${i}/${frames}`);
+  }
+  await venc.flush();
+  if (audioOk) {
+    st('rendering soundtrack');
+    const buf = await soundtrack(SR);
+    const aenc = new AudioEncoder({ output: (c, m) => muxer.addAudioChunk(c, m), error: (e) => { throw e; } });
+    aenc.configure(acfg);
+    const L = buf.getChannelData(0), Rr = buf.getChannelData(1), CH = 1024;
+    for (let s = 0; s < buf.length; s += CH) {
+      const n = Math.min(CH, buf.length - s);
+      const data = new Float32Array(n * 2); data.set(L.subarray(s, s + n), 0); data.set(Rr.subarray(s, s + n), n);
+      const ad = new AudioData({ format: 'f32-planar', sampleRate: SR, numberOfFrames: n, numberOfChannels: 2, timestamp: Math.round(s * 1e6 / SR), data });
+      aenc.encode(ad); ad.close();
+    }
+    await aenc.flush();
+  }
+  muxer.finalize();
+  const out = target.buffer;
+  st(`encoded ${(out.byteLength / 1e6).toFixed(2)} MB (audio: ${audioOk}), saving`);
+  const r = await fetch('/upload', { method: 'POST', body: out, headers: { 'content-type': 'video/mp4' } });
+  const msg = await r.text(); st('done: ' + msg);
+  return { bytes: out.byteLength, seconds: TOTAL, frames, audio: audioOk, server: msg };
+}
+window.renderVideo = render; window.drawFrame = drawFrame; window.TOTAL = TOTAL;
+document.getElementById('render').onclick = () => render().catch((e) => st('error: ' + e.message));
+// ?sheet=1 draws a contact sheet of key frames (for review); otherwise a still from scene 2.
+if (new URLSearchParams(location.search).has('sheet')) {
+  const times = [3.5, 13, 21, 30.5, 37.5, 50, 63, 70];
+  const sheet = document.createElement('canvas'); sheet.width = 1280; sheet.height = 1440;
+  const sx = sheet.getContext('2d');
+  times.forEach((t, i) => { drawFrame(t); sx.drawImage(cv, (i % 2) * 640, Math.floor(i / 2) * 360, 640, 360); });
+  document.body.innerHTML = ''; document.body.style.padding = '0'; document.body.appendChild(sheet);
+} else drawFrame(3);
+document.body.dataset.ready = '1';
+</script>
+</body>
+</html>

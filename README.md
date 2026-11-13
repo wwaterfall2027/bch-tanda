@@ -6,7 +6,7 @@ A **tanda** (also called susu, chit fund, tontine, hui or ROSCA) is how hundreds
 
 **Live app:** https://wwaterfall2027.github.io/bch-tanda/app/ (mainnet) · [chipnet version](https://wwaterfall2027.github.io/bch-tanda/app/?net=chipnet)
 
-Built for BCH BLAZE 2026.
+Built for BCH BLAZE 2026 (Mainnet and Media tracks): [presentation](https://wwaterfall2027.github.io/bch-tanda/slides/) ([PDF](slides/tanda-slides.pdf)) · [74-second video](https://wwaterfall2027.github.io/bch-tanda/video/).
 
 ## How it works
 
@@ -69,6 +69,8 @@ The WizardConnect flow was tested end to end on chipnet, through the public rela
 | `app/` | The web app (static, no build step) |
 | `tests/` | Contract tests and the test WizardConnect wallet |
 | `run/` | The chipnet run and its record |
+| `slides/` | The BLAZE presentation (HTML and PDF) |
+| `video/` | The Media-track short and the code that renders it (canvas + WebCodecs, no editor) |
 
 Everything runs in the browser from pinned ES modules: `cashc` and `cashscript` 0.14.0, `@bitauth/libauth` 3.0.0, `@wizardconnect/dapp` 0.2.6 and `@wizardconnect/core` 0.2.10.
 

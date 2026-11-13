@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tanda: the video</title>
+<meta name="description" content="A 74-second animated short about the tanda, the savings circle hundreds of millions of people use, and how a Bitcoin Cash covenant makes it impossible to run off with the pot.">
+<link rel="icon" href="../app/icon.svg" type="image/svg+xml">
+<style>
+  :root { --bg: #0b0706; --ink: #fff7ed; --muted: #d6c3b3; --accent: #f97316; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .blaze { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; justify-content: center; padding: 8px 16px; background: #7a0b1c; color: #fff; font-size: 13px; }
+  .blaze a { color: #fff; font-weight: 700; }
+  .blaze code { color: #fde68a; word-break: break-all; }
+  main { max-width: 980px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: clamp(26px, 4.5vw, 40px); margin: 8px 0 14px; }
+  video { width: 100%; border-radius: 12px; background: #000; display: block; }
+  p { color: var(--muted); }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="blaze" role="note">
+  <b>BCH BLAZE 2026 · Media track</b>
+  <a href="../slides/">Presentation</a>
+  <a href="https://github.com/wwaterfall2027/bch-tanda">Source code</a>
+  <span>EMBER2026 votes: <code>bitcoincash:zEMBER_ADDRESS</code></span>
+</div>
+<main>
+  <h1>The savings circle nobody can run off with</h1>
+  <video src="tanda.mp4" controls playsinline preload="metadata" poster=""></video>
+  <p>Every week, abuelas all over Mexico save in a <b>tanda</b>: ten friends chip in and one takes the whole pot, in turns. Hundreds of millions of people save this way, as susu, chit funds, gye, hui, tontines, pasanaku or arisan. Its weak spot has always been trust: the organizer who runs off with the pot.</p>
+  <p>This 74-second short tells that story, and shows how a Bitcoin Cash covenant fixes it: the pot can only go to whoever's turn it is. English and Spanish captions. The animation and the marimba soundtrack were generated in code (<a href="make.html">source</a>), with AI assistance.</p>
+  <p><a href="../app/">Try Tanda</a> · <a href="tanda.mp4" download>Download the MP4</a></p>
+</main>
+</body>
+</html>
