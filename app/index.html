@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tanda on Bitcoin Cash</title>
+<meta name="description" content="A rotating savings circle (tanda, susu, chit fund) enforced by a Bitcoin Cash covenant: the pot can only go to the member whose turn it is.">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+  :root {
+    --bg: #fbf7f1; --surface: #ffffff; --surface2: #f6efe5; --ink: #1f1a17; --muted: #6b5f55; --line: #eadfce;
+    --accent: #c2410c; --accent-ink: #ffffff; --gold: #d97706; --ok: #0f7a4f; --bad: #b42318; --focus: #2563eb;
+    --shadow: 0 1px 2px rgba(60, 30, 10, .06), 0 6px 24px rgba(60, 30, 10, .06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17120f; --surface: #211a16; --surface2: #2a211c; --ink: #f6eee6; --muted: #b8a999; --line: #3a2e27;
+      --accent: #f97316; --accent-ink: #1b0f08; --gold: #fbbf24; --ok: #34d399; --bad: #f87171; --focus: #93c5fd;
+      --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  a { color: var(--accent); }
+  main { max-width: 980px; margin: 0 auto; padding: 0 16px 72px; }
+  header.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 0; flex-wrap: wrap; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 20px; text-decoration: none; color: var(--ink); }
+  .brand img { width: 34px; height: 34px; }
+  .net { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--surface2); color: var(--muted); border: 1px solid var(--line); }
+  .net.chip { color: var(--gold); }
+  .hero { padding: 28px 0 8px; }
+  .hero h1 { font-size: clamp(30px, 5.4vw, 48px); line-height: 1.08; margin: 0 0 12px; letter-spacing: -.02em; }
+  .hero h1 em { font-style: normal; color: var(--accent); }
+  .hero p { font-size: 18px; max-width: 720px; color: var(--muted); margin: 0; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 20px; box-shadow: var(--shadow); }
+  h2 { font-size: 22px; margin: 36px 0 12px; }
+  h3 { font-size: 17px; margin: 0 0 8px; }
+  .muted { color: var(--muted); }
+  .small { font-size: 13px; }
+  button, .btn { font: inherit; font-weight: 650; border-radius: 10px; padding: 10px 16px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+  button.primary, .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  input { font: inherit; width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+  label { font-size: 14px; font-weight: 600; display: block; margin-bottom: 4px; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 720px) { .grid2 { grid-template-columns: 1fr; } }
+  .walletbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .addr { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; word-break: break-all; }
+  .pill { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--surface2); }
+  .pill.ok { color: var(--ok); } .pill.turn { color: var(--accent); } .pill.wait { color: var(--muted); }
+  .status { margin-top: 12px; font-size: 14px; min-height: 1.5em; }
+  .status.err { color: var(--bad); } .status.ok { color: var(--ok); }
+  .members { display: grid; gap: 8px; }
+  .member { display: grid; grid-template-columns: 34px 1fr 1.6fr 34px; gap: 8px; align-items: center; }
+  .member .n { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--surface2); font-weight: 700; font-size: 14px; }
+  .member button { padding: 6px 8px; }
+  @media (max-width: 640px) { .member { grid-template-columns: 30px 1fr 30px; } .member .a { grid-column: 2 / 4; } }
+  .ring { display: grid; grid-template-columns: 220px 1fr; gap: 24px; align-items: center; }
+  @media (max-width: 720px) { .ring { grid-template-columns: 1fr; } }
+  .ring svg { width: 100%; max-width: 220px; height: auto; display: block; margin: 0 auto; }
+  .ring svg text { fill: var(--ink); }
+  .bar { height: 12px; border-radius: 999px; background: var(--surface2); overflow: hidden; margin: 8px 0 4px; }
+  .bar > i { display: block; height: 100%; background: var(--gold); width: 0; transition: width .4s; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  td, th { text-align: left; padding: 10px 6px; border-top: 1px solid var(--line); vertical-align: middle; }
+  th { color: var(--muted); font-size: 13px; border-top: 0; font-weight: 600; }
+  .tablewrap { overflow-x: auto; }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 720px) { .steps { grid-template-columns: 1fr; } }
+  .steps .card b { display: block; font-size: 30px; color: var(--accent); line-height: 1; margin-bottom: 6px; }
+  ul.guar { padding-left: 20px; margin: 0; } ul.guar li { margin: 6px 0; }
+  dialog { border: 1px solid var(--line); border-radius: 16px; padding: 22px; background: var(--surface); color: var(--ink); max-width: 400px; width: calc(100% - 32px); }
+  dialog::backdrop { background: rgba(0,0,0,.45); }
+  #qr { background: #fff; padding: 12px; border-radius: 12px; display: grid; place-items: center; margin: 12px 0; }
+  #qr svg, #shareQr svg { width: 100%; max-width: 260px; height: auto; }
+  .hidden { display: none !important; }
+  footer { margin-top: 48px; font-size: 13px; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <header class="top">
+    <a class="brand" href="./" id="home"><img src="icon.svg" alt="">Tanda <span class="net" id="net">mainnet</span></a>
+    <div class="walletbar" id="walletbar">
+      <button class="primary" id="connect">Connect wallet</button>
+    </div>
+  </header>
+
+  <section class="hero" id="hero">
+    <h1>The savings circle <em>nobody can run off with.</em></h1>
+    <p>A <b>tanda</b> (also called susu, chit fund, tontine or ROSCA) is how hundreds of millions of people save: everyone chips in every round and one member takes the whole pot, in turns. Its weak spot has always been trust. Here a Bitcoin Cash covenant holds the pot and can <b>only</b> pay it to the member whose turn it is, so not even the organizer can take it.</p>
+  </section>
+
+  <!-- Create a tanda -->
+  <section id="createView">
+    <h2>Start a tanda</h2>
+    <div class="card">
+      <div class="grid2">
+        <div><label for="tName">Name</label><input id="tName" value="Family tanda" maxlength="40"></div>
+        <div><label for="tAmount">Each member pays per round (<span class="unit">BCH</span>)</label><input id="tAmount" value="0.0001" inputmode="decimal"></div>
+      </div>
+      <h3 style="margin-top:18px">Members, in payout order</h3>
+      <p class="muted small" style="margin-top:0">Round 1 pays member 1, round 2 pays member 2, and so on. Ask each member for their BCH address (2 to 10 members). The order is final once the tanda is created.</p>
+      <div class="members" id="memberRows"></div>
+      <div class="row" style="margin-top:10px">
+        <button id="addMember">+ Add member</button>
+        <button id="addMe" disabled>Add my wallet</button>
+      </div>
+      <p class="muted small" id="summary"></p>
+      <div class="row"><button class="primary" id="create" disabled>Create tanda</button></div>
+      <div class="status" id="createStatus"></div>
+    </div>
+    <p class="muted small" id="demoLink"></p>
+  </section>
+
+  <!-- One tanda -->
+  <section id="tandaView" class="hidden">
+    <h2 id="tTitle">Tanda</h2>
+    <div class="card">
+      <div class="ring">
+        <div id="ringSvg"></div>
+        <div>
+          <div class="muted small" id="roundLabel"></div>
+          <div style="font-size:24px;font-weight:800" id="turnLabel"></div>
+          <div class="bar" aria-hidden="true"><i id="potBar"></i></div>
+          <div class="small" id="potLabel"></div>
+          <div class="row" style="margin-top:14px">
+            <button class="primary" id="payShare" disabled>Pay my share</button>
+            <button id="release" disabled>Release the pot</button>
+            <button id="refresh">Refresh</button>
+          </div>
+          <div class="status" id="tandaStatus"></div>
+        </div>
+      </div>
+    </div>
+    <h2>Members</h2>
+    <div class="card tablewrap"><table id="memberTable"></table></div>
+    <h2>Share this tanda</h2>
+    <div class="card">
+      <div class="grid2">
+        <div>
+          <p class="small muted" style="margin-top:0">The link is the tanda: it holds the members, the amount and the contract's token ID. No account, no server. Anyone with it can check the pot, and anyone can release it once it is full.</p>
+          <div class="row"><button id="copyLink">Copy link</button></div>
+          <p class="small">Contract: <a id="contractLink" class="addr" target="_blank" rel="noopener"></a></p>
+          <p class="small muted">Members pay by sending exactly <b id="payExact"></b> to the contract address, from this page or from any wallet.</p>
+        </div>
+        <div id="shareQr" style="background:#fff;border-radius:12px;padding:12px;display:grid;place-items:center"></div>
+      </div>
+    </div>
+  </section>
+
+  <h2>How it works</h2>
+  <div class="steps">
+    <div class="card"><b>1</b><h3>Create</h3><p class="small muted">The organizer lists the members in payout order and the amount per round. One transaction deploys the rules and mints a small NFT that tracks the round.</p></div>
+    <div class="card"><b>2</b><h3>Pay in</h3><p class="small muted">Every round, each member sends their share to the contract address from any BCH wallet. Everyone sees the pot fill up on the chain.</p></div>
+    <div class="card"><b>3</b><h3>Release</h3><p class="small muted">When the pot is full, anyone presses Release. The covenant only lets it go to the member whose turn it is, and moves the round forward.</p></div>
+  </div>
+  <h2>What the contract guarantees</h2>
+  <div class="card">
+    <ul class="guar">
+      <li>The pot can only be paid to the member whose turn it is, never to anyone else, the organizer included.</li>
+      <li>It can only be paid when it is complete: members × amount.</li>
+      <li>The round counter (an NFT inside the contract) moves forward exactly one step per payout and can't leave the contract.</li>
+      <li>Money paid ahead for later rounds stays in the contract. After the last round, everything left goes to the last member.</li>
+      <li>Nobody can burn the pot in fees: a payout may spend at most a small fixed fee.</li>
+      <li>No keys are needed to release a pot, so a tanda keeps working even if the organizer disappears.</li>
+    </ul>
+    <p class="small muted" style="margin-bottom:0">What it can't do: force a member to keep paying after they've had their turn. That part of a tanda is still social, as it always was. The difference is that everyone can see on the chain who has paid.</p>
+  </div>
+
+  <footer>
+    Tanda · open source · <a href="https://github.com/wwaterfall2027/bch-tanda" id="srcLink">contract and code</a> ·
+    <a href="#" id="netSwitch"></a> · Built for BCH BLAZE 2026.
+  </footer>
+</main>
+
+<dialog id="wcDialog">
+  <h3>Connect your wallet</h3>
+  <p class="small muted" style="margin-top:0">Open a WizardConnect wallet (for example Paytaca), choose <b>Scan</b> and scan this code. Your keys never leave your wallet; you approve every transaction on your phone.</p>
+  <div id="qr"></div>
+  <div class="row"><button id="copyUri">Copy connection link</button><button id="closeDialog">Close</button></div>
+  <div id="testWalletBox" class="hidden" style="margin-top:14px">
+    <p class="small muted">On chipnet you can also try it without a phone:</p>
+    <button id="useTest">Use a test wallet (chipnet only)</button>
+  </div>
+  <div class="status small" id="wcStatus"></div>
+</dialog>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

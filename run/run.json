@@ -1,0 +1,28 @@
+{
+  "network": "chipnet",
+  "explorer": "https://explorer.selene.cash/?network=chipnet",
+  "contribution_sats": 50000,
+  "members": {
+    "ana": "bchtest:qr5e3920knyp6tvmulshsu5c70kng54yqvnn86taj2",
+    "beto": "bchtest:qqv2cn9qf7844h5ssc7uvtua88t3s3tgeyqn485v38",
+    "carla": "bchtest:qr2uej06d6ht4mzt86fp8fwchp2d6uh8tqhn4ru523"
+  },
+  "contract": "bchtest:p0l4l43fe9tcnscl62n7gfhvkv8wjgyevd85me2xwhgy7zevfuzpqdm0qg3rr",
+  "category": "906e1d9c8718dd7ded21cb1d73fd9112524140345c054b50a570ded1eacdf5c0",
+  "transactions": [
+    { "label": "fund members", "txid": "906e1d9c8718dd7ded21cb1d73fd9112524140345c054b50a570ded1eacdf5c0", "at": "2026-11-13T00:58:13.296Z" },
+    { "label": "create tanda (mint state NFT)", "txid": "c14d90a1396e5707b69944a925908b531bed0272b9b6664c74875f016f634dc8", "at": "2026-11-13T00:58:22.025Z" },
+    { "label": "round 0: ana pays", "txid": "419a918ba795ad06d1ad3a2d7b6848229abbf659599e7106e0f420d0037af2d2", "at": "2026-11-13T00:58:32.583Z" },
+    { "label": "round 0: beto pays", "txid": "e113280dbc84d7ec66e4c1cb9a7e22667a8c5093b0129c324dbb6e205abf1b12", "at": "2026-11-13T00:58:34.446Z" },
+    { "label": "round 0: carla pays", "txid": "6be081f67b96cb5a45123b801268c312a4ee60c6f0537105df53dbdede57fb90", "at": "2026-11-13T00:58:36.310Z" },
+    { "label": "round 0: payout 148630 sats to ana (fee 1370)", "txid": "22401907cc68f3c70f672bd91d384e7d9c98774da93a0d2b84b02c4e366450c1", "at": "2026-11-13T00:58:40.842Z" },
+    { "label": "round 1: ana pays", "txid": "f11437d095344e2704152aa61c5dbc17ee6232359b043463d7da3ee5a4659893", "at": "2026-11-13T00:58:45.385Z" },
+    { "label": "round 1: beto pays", "txid": "8ba2712fe2a71ae6a42174560a701c5968ad7096955dbc6f723e2233f7cdbc1a", "at": "2026-11-13T00:58:47.224Z" },
+    { "label": "round 1: carla pays", "txid": "100ea35f3553939b002225b6670419bd0b711e164366b3e4503d641ce0f5bdb4", "at": "2026-11-13T00:58:49.053Z" },
+    { "label": "round 1: payout 148630 sats to beto (fee 1370)", "txid": "1a9f9e5d4cfb281fc85cdea3bd3e4881d9c098ce4bd8526b76644c14ede9c148", "at": "2026-11-13T00:58:53.570Z" },
+    { "label": "round 2: ana pays", "txid": "d9a142862d5465126627735b503d19bc0f7e56fb0c7b553fc4e51ba66196eb9b", "at": "2026-11-13T00:58:58.142Z" },
+    { "label": "round 2: beto pays", "txid": "dc3d6070550443cdce1f1cb675ad4275d568d20110f724792d5a8feb1e99100e", "at": "2026-11-13T00:58:59.992Z" },
+    { "label": "round 2: carla pays", "txid": "2aa8c9dab8520b5ce90689d2eafdd727fbdc58c7271c901194394faf5ce21431", "at": "2026-11-13T00:59:01.820Z" },
+    { "label": "round 2: payout 148630 sats to carla (fee 1370)", "txid": "50a94aa6b85dbdf88e267b3a31c3676aa5ffb8319a4f7aaf5129f50a8f1fae8a", "at": "2026-11-13T00:59:06.346Z" }
+  ]
+}

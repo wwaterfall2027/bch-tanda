@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Test WizardConnect wallet</title>
+<style>body { font: 14px/1.5 system-ui, sans-serif; margin: 24px; background: #fff; color: #111; } pre { background: #f4f4f4; padding: 10px; white-space: pre-wrap; font-size: 12px; }</style>
+</head>
+<body>
+<h1>Test WizardConnect wallet (chipnet only)</h1>
+<p>A minimal HD wallet built on <code>@wizardconnect/wallet</code> to test the dapp end to end. It auto-approves every request. The seed is random, stays in this browser, and only ever holds chipnet test coins.</p>
+<pre id="log"></pre>
+<script type="module">
+  import { WalletConnectionManager } from 'https://esm.sh/@wizardconnect/wallet@0.2.4?deps=@wizardconnect/core@0.2.10';
+  import { SignatureTemplate, SignatureAlgorithm, SighashType } from 'https://esm.sh/cashscript@0.14.0';
+  import {
+    deriveHdPrivateNodeFromSeed, deriveHdPath, deriveHdPublicNode, encodeHdPublicKey, secp256k1, hash160,
+    encodeCashAddress, decodeTransaction, hexToBin, binToHex, encodeTransaction, generateRandomBytes,
+  } from 'https://esm.sh/@bitauth/libauth@3.0.0';
+
+  const log = (m) => { document.getElementById('log').textContent += m + '\n'; console.log(m); };
+  let seedHex = localStorage.getItem('wiz-test-seed');
+  if (!seedHex) { seedHex = binToHex(generateRandomBytes(32)); localStorage.setItem('wiz-test-seed', seedHex); }
+  const root = deriveHdPrivateNodeFromSeed(hexToBin(seedHex), { throwErrors: true });
+  const account = (child) => deriveHdPath(root, `m/44'/145'/0'/${child}`);
+  const nodeAt = (child, i) => deriveHdPath(root, `m/44'/145'/0'/${child}/${i}`);
+  const addrOf = (child, i) => encodeCashAddress({ prefix: 'bchtest', type: 'p2pkh', payload: hash160(secp256k1.derivePublicKeyCompressed(nodeAt(child, i).privateKey)) }).address;
+  window.__wizAddr = addrOf(0, 0);
+  log('receive/0: ' + window.__wizAddr);
+
+  const relayKeys = JSON.parse(localStorage.getItem('wiz-test-relay') || '{}');
+  const adapter = {
+    walletName: 'Test HD wallet', walletIcon: '',
+    getRelayPrivateKey(uri) {
+      if (!relayKeys[uri]) { relayKeys[uri] = binToHex(generateRandomBytes(32)); localStorage.setItem('wiz-test-relay', JSON.stringify(relayKeys)); }
+      return hexToBin(relayKeys[uri]);
+    },
+    getPublicKey(path, index) { return secp256k1.derivePublicKeyCompressed(nodeAt(path, Number(index)).privateKey); },
+    getXpub(path) {
+      return encodeHdPublicKey({ network: 'mainnet', node: deriveHdPublicNode(account(path)) }).hdPublicKey;
+    },
+    async signTransaction(request) { return { signedTransactionHex: signRequest(request) }; },
+  };
+
+  const PATH = { receive: 0, change: 1, defi: 7 };
+  // Revive libauth extended JSON ("<bigint: 5n>", "<Uint8Array: 0x..>"), as BCH wallets do.
+  const revive = (v) => {
+    if (typeof v === 'string') {
+      let m = v.match(/^<bigint: (-?\d+)n>$/); if (m) return BigInt(m[1]);
+      m = v.match(/^<Uint8Array: 0x([0-9a-f]*)>$/); if (m) return hexToBin(m[1]);
+      return v;
+    }
+    if (Array.isArray(v)) return v.map(revive);
+    if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, revive(x)]));
+    return v;
+  };
+  function signRequest(request) {
+    const wc = revive(request.transaction);
+    const tx = typeof wc.transaction === 'string' ? decodeTransaction(hexToBin(wc.transaction)) : wc.transaction;
+    const sourceOutputs = wc.sourceOutputs;
+    for (const [inputIndex, pathName, addressIndex] of request.inputPaths) {
+      const priv = nodeAt(PATH[pathName], Number(addressIndex)).privateKey;
+      const tpl = new SignatureTemplate(priv, SighashType.SIGHASH_ALL | SighashType.SIGHASH_UTXOS, SignatureAlgorithm.SCHNORR);
+      tx.inputs[inputIndex].unlockingBytecode = tpl.unlockP2PKH().generateUnlockingBytecode({ transaction: tx, sourceOutputs, inputIndex });
+    }
+    const hex = binToHex(encodeTransaction(tx));
+    log(`signed ${request.inputPaths.length} input(s); prompt: ${wc.userPrompt}`);
+    return hex;
+  }
+
+  const mgr = new WalletConnectionManager(adapter);
+  mgr.on('connectionStatusChanged', (id, s) => log('status: ' + JSON.stringify(s)));
+  mgr.on('pendingSignRequest', async ({ connectionId, request }) => {
+    log('sign request #' + request.sequence + ' inputPaths=' + JSON.stringify(request.inputPaths) + ' txType=' + typeof request.transaction.transaction);
+    try { await mgr.sendSignResponse(connectionId, request.sequence, signRequest(request)); log('sent signature'); }
+    catch (e) { log('sign error: ' + e.message); await mgr.sendSignError(connectionId, request.sequence, e.message); }
+  });
+  window.__wizConnect = (uri) => { const id = mgr.connect(uri); log('connecting ' + id); return id; };
+  const uri = new URLSearchParams(location.search).get('uri');
+  if (uri) window.__wizConnect(uri);
+  document.body.dataset.ready = '1';
+</script>
+</body>
+</html>

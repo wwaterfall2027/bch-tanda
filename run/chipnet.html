@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tanda chipnet run</title>
+<style>
+  body { font: 14px/1.5 system-ui, sans-serif; margin: 24px; background: #fff; color: #111; max-width: 900px; }
+  button { margin: 4px 6px 4px 0; padding: 6px 10px; }
+  pre { background: #f4f4f4; padding: 10px; overflow-x: auto; font-size: 12px; }
+  code { font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>Tanda: chipnet run (test coins only)</h1>
+<p>Burner keys live in this browser's localStorage and only ever hold worthless chipnet coins.</p>
+<div id="wallets">Loading…</div>
+<p>
+  <button data-a="fund">1. Fund members from organizer</button>
+  <button data-a="create">2. Create tanda</button>
+  <button data-a="pay">3. Everyone pays this round</button>
+  <button data-a="payout">4. Pay out this round</button>
+  <button data-a="refresh">Refresh</button>
+</p>
+<h2>Tanda</h2>
+<pre id="tanda">none yet</pre>
+<h2>Log</h2>
+<pre id="log"></pre>
+<script type="module">
+  import { ElectrumNetworkProvider } from 'https://esm.sh/cashscript@0.14.0';
+  import { burner, balance, send } from '../src/burner.js';
+  import { tandaContract, readTanda, buildPayout, buildGenesis } from '../src/tanda.js';
+
+  const provider = new ElectrumNetworkProvider('chipnet');
+  const C = 50_000n;
+  const W = { organizer: burner('organizer'), ana: burner('ana'), beto: burner('beto'), carla: burner('carla') };
+  const members = [W.ana, W.beto, W.carla];
+  const $ = (s) => document.querySelector(s);
+  const run = JSON.parse(localStorage.getItem('tanda-run') || '{"txs":[]}');
+  const save = () => localStorage.setItem('tanda-run', JSON.stringify(run, (k, v) => typeof v === 'bigint' ? v.toString() : v));
+  const log = (m) => { $('#log').textContent += m + '\n'; };
+  const record = (label, txid) => { run.txs.push({ label, txid, at: new Date().toISOString() }); save(); log(`${label}: ${txid}`); };
+  const params = () => run.params && { ...run.params, contribution: BigInt(run.params.contribution), maxFee: run.params.maxFee ? BigInt(run.params.maxFee) : undefined };
+
+  async function refresh() {
+    const rows = [];
+    for (const w of Object.values(W)) rows.push(`<div><b>${w.name}</b> <code>${w.address}</code> ${await balance(provider, w)} sats</div>`);
+    $('#wallets').innerHTML = rows.join('');
+    if (run.params) {
+      const c = await tandaContract(params(), provider);
+      const t = await readTanda(params(), c);
+      $('#tanda').textContent = JSON.stringify({ address: c.address, category: run.params.category, round: t.round, n: t.n, potSats: t.potSats, need: t.need, ready: t.ready, finished: t.finished, turn: t.turn }, (k, v) => typeof v === 'bigint' ? v.toString() : v, 2);
+    }
+    window.__run = run;
+    document.body.dataset.ready = '1';
+  }
+
+  const actions = {
+    async fund() {
+      const tx = await send(provider, W.organizer, [
+        { to: W.organizer.address, amount: 20_000n }, // vout 0: the coin that will mint the tanda token
+        ...members.map((m) => ({ to: m.address, amount: 4n * C })),
+      ]);
+      record('fund members', tx.txid);
+    },
+    async create() {
+      const coins = (await provider.getUtxos(W.organizer.address)).filter((u) => !u.token);
+      const wallet = { address: W.organizer.address, unlockerFor: () => W.organizer.sig.unlockP2PKH() };
+      const { tb, params: p, contract } = await buildGenesis(
+        { members: members.map((m) => m.address), contribution: C }, { provider, wallet, coins });
+      const tx = await tb.send();
+      run.params = { ...p, contribution: p.contribution.toString(), contract: contract.address };
+      record('create tanda (mint state NFT)', tx.txid);
+    },
+    async pay() {
+      const c = await tandaContract(params(), provider);
+      const t = await readTanda(params(), c);
+      for (const m of members) record(`round ${t.round}: ${m.name} pays`, (await send(provider, m, [{ to: c.address, amount: C }])).txid);
+    },
+    async payout() {
+      const c = await tandaContract(params(), provider);
+      const p = await buildPayout(params(), c, provider);
+      const tx = await p.tb.send();
+      record(`round ${p.round}: payout ${p.amount} sats to ${members.find((m) => m.address === p.to).name} (fee ${p.fee})`, tx.txid);
+    },
+    refresh,
+  };
+  window.__act = async (a) => { try { await actions[a](); } catch (e) { log(`ERROR ${a}: ${e.message}`); throw e; } finally { await refresh(); } };
+  document.querySelectorAll('button[data-a]').forEach((b) => b.onclick = () => window.__act(b.dataset.a));
+  refresh();
+</script>
+</body>
+</html>

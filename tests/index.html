@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tanda tests</title>
+<style>
+  body { font: 14px/1.5 system-ui, sans-serif; margin: 24px; background: #fff; color: #111; }
+  .ok { color: #0a7a3d; } .bad { color: #b42318; }
+  li { margin: 4px 0; } code { font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>Tanda covenant tests</h1>
+<p id="sum">Running…</p>
+<ul id="list"></ul>
+<script type="module">
+  import { run, rejections } from './tanda.test.js';
+  const results = await run();
+  window.__rejections = rejections;
+  const pass = results.filter((r) => r.ok).length;
+  document.getElementById('sum').textContent = `${pass}/${results.length} passing`;
+  document.getElementById('list').innerHTML = results.map((r) =>
+    `<li class="${r.ok ? 'ok' : 'bad'}">${r.ok ? '✓' : '✗'} ${r.name}${r.ok ? '' : ` <code>${r.err.replace(/</g, '&lt;')}</code>`}</li>`).join('');
+  window.__results = results;
+  document.body.dataset.done = '1';
+</script>
+</body>
+</html>

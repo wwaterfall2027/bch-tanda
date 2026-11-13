@@ -1,0 +1,72 @@
+pragma cashscript ^0.14.0;
+
+/*
+ * Tanda: a rotating savings group (ROSCA) on Bitcoin Cash.
+ *
+ * n members each pay `contribution` sats into this contract every round. Once the
+ * round's pot is complete, ANYONE can trigger the payout, but the contract only
+ * lets the pot go to the member whose turn it is. Nobody, not even the organizer,
+ * can redirect it.
+ *
+ * State lives in a single mutable NFT (category `category`) held by the contract.
+ * Its commitment is the current round number (empty commitment = round 0).
+ *
+ * members      n * 20 bytes: the P2PKH hash of each member, in payout order
+ * n            number of members (= number of rounds)
+ * contribution sats each member pays per round
+ * maxFee       most sats a payout may spend on miner fees
+ * category     the token category of the state NFT (internal byte order)
+ */
+contract Tanda(bytes members, int n, int contribution, int maxFee, bytes32 category) {
+
+  function payout() {
+    // Every contract input runs this function. All of them require that input 0 is the
+    // tanda's state UTXO, so pot UTXOs can only ever be spent in a valid payout.
+    require(tx.inputs[0].lockingBytecode == tx.inputs[this.activeInputIndex].lockingBytecode);
+    require(tx.inputs[0].tokenCategory == category + 0x01);
+
+    if (this.activeInputIndex == 0) {
+      int round = int(tx.inputs[0].nftCommitment);
+      require(round < n);
+
+      // Output 0: the full pot (minus at most maxFee) to the member whose turn it is.
+      bytes20 turn = unsafe_bytes20(members.split(round * 20)[1].split(20)[0]);
+      require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(turn));
+      require(tx.outputs[0].tokenCategory == 0x);
+      require(tx.outputs[0].value >= n * contribution - maxFee);
+
+      // Output 1: the state NFT goes back to the contract, advanced to the next round.
+      require(tx.outputs[1].lockingBytecode == tx.inputs[0].lockingBytecode);
+      require(tx.outputs[1].tokenCategory == category + 0x01);
+      require(tx.outputs[1].nftCommitment == bytes(round + 1));
+      require(tx.outputs[1].value == tx.inputs[0].value);
+
+      // Optional output 2: money paid ahead for later rounds stays in the contract.
+      // After the last round nothing may stay behind: it all goes to the last member.
+      if (round + 1 < n) {
+        require(tx.outputs.length <= 3);
+        if (tx.outputs.length == 3) {
+          require(tx.outputs[2].lockingBytecode == tx.inputs[0].lockingBytecode);
+          require(tx.outputs[2].tokenCategory == 0x);
+        }
+      } else {
+        require(tx.outputs.length == 2);
+      }
+
+      // No value may leak to fees beyond maxFee.
+      int totalIn = 0;
+      int i = 0;
+      do {
+        totalIn = totalIn + tx.inputs[i].value;
+        i = i + 1;
+      } while (i < tx.inputs.length);
+      int totalOut = 0;
+      int j = 0;
+      do {
+        totalOut = totalOut + tx.outputs[j].value;
+        j = j + 1;
+      } while (j < tx.outputs.length);
+      require(totalIn - totalOut <= maxFee);
+    }
+  }
+}
