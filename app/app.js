@@ -28,7 +28,8 @@ async function connectWc() {
   const { WcWallet } = await import('../src/wc.js');
   const w = new WcWallet(net);
   w.addEventListener('ready', () => { wallet = w; $('#wcDialog').close(); renderWallet(); refreshTanda(); });
-  w.addEventListener('disconnect', () => { if (wallet === w) { wallet = null; renderWallet(); } });
+  w.addEventListener('disconnect', () => { if (wallet === w) { wallet = null; renderWallet(); refreshTanda(); } });
+  w.addEventListener('offline', () => { if (wallet === w) renderWallet(); });
   return w;
 }
 
@@ -50,7 +51,7 @@ async function renderWallet() {
     bar.innerHTML = '<button class="primary" id="connect">Connect wallet</button>';
     $('#connect').onclick = openConnect;
   } else {
-    bar.innerHTML = `<span class="small"><b>${esc(wallet.walletName || 'Wallet')}</b> <span class="addr" title="${esc(wallet.address)}">${short(wallet.address)}</span> · <span id="bal">…</span></span><button id="disconnect">Disconnect</button>`;
+    bar.innerHTML = `<span class="small"><b>${esc(wallet.walletName || 'Wallet')}</b> <span class="addr" title="${esc(wallet.address)}">${short(wallet.address)}</span> · <span id="bal">…</span>${wallet.offline ? ' · <b class="offline" style="color:#c2410c" title="The wallet is not answering. Open it to reconnect, or disconnect here.">wallet offline: open it to reconnect</b>' : ''}</span><button id="disconnect">Disconnect</button>`;
     $('#disconnect').onclick = async () => { await wallet.disconnect(); localStorage.removeItem('tanda-test-wallet'); wallet = null; renderWallet(); refreshTanda(); };
     wallet.coins(provider).then((cs) => { const b = $('#bal'); if (b) b.textContent = fmtBch(cs.reduce((s, c) => s + c.satoshis, 0n), net.unit); })
       .catch(() => { const b = $('#bal'); if (b) b.textContent = 'balance unavailable'; });
