@@ -17,8 +17,32 @@ export class WcWallet extends EventTarget {
     this.mgr = new DappConnectionManager(dappName, dappIcon, { session: { key: `tanda-wc-session-${net.name}` } });
     this.relay = null;
     this.ready = false;
-    this.mgr.on('walletready', (msg) => { this.ready = true; this.walletName = msg.wallet_name; this.emit('ready'); });
-    this.mgr.on('disconnect', (reason) => { this.ready = false; this.emit('disconnect', reason); });
+    this.offline = false; // a stored session the wallet has not answered yet, or that stopped answering
+    this.offlineTimer = null;
+    this.mgr.on('walletready', (msg) => {
+      clearTimeout(this.offlineTimer);
+      this.ready = true; this.offline = false; this.walletName = msg.wallet_name;
+      this.emit('ready');
+    });
+    // The wallet stopped answering pings: closed app, lost network, or a session ended on the phone.
+    this.mgr.on('reconnecting', () => this.markOffline());
+    // The wallet ended the session: forget it here too, so a reload does not bring it back.
+    this.mgr.on('disconnect', (reason) => this.ended(reason));
+  }
+
+  markOffline() {
+    if (!this.ready || this.offline) return;
+    this.offline = true;
+    this.emit('offline');
+  }
+
+  ended(reason) {
+    clearTimeout(this.offlineTimer);
+    const was = this.ready || this.offline;
+    this.ready = false; this.offline = false;
+    this.mgr.clearStoredSession();
+    this.relay?.cleanup?.();
+    if (was) this.emit('disconnect', reason);
   }
 
   emit(type, detail) { this.dispatchEvent(new CustomEvent(type, { detail })); }
@@ -33,6 +57,10 @@ export class WcWallet extends EventTarget {
       });
       this.mgr.attachRelay(this.relay);
       if (this.mgr.getSessionPaths().length) { this.ready = true; this.walletName = this.mgr.walletName; }
+      // A stored session only proves the wallet was here before. If it does not answer
+      // soon (for example the session was ended on the phone), say so instead of
+      // showing the wallet as connected.
+      this.offlineTimer = setTimeout(() => this.markOffline(), 20000);
       return true;
     } catch { this.mgr.clearStoredSession(); return false; }
   }
@@ -49,6 +77,7 @@ export class WcWallet extends EventTarget {
     this.relayStatus = p.status?.status;
     this.mgr.updateConnection(p.client, p.status);
     this.emit('status', this.relayStatus);
+    if (this.relayStatus === 'session_deleted') this.ended('session_deleted');
   }
 
   // After a page reload the relay needs a moment to reconnect before it can carry requests.
@@ -61,6 +90,8 @@ export class WcWallet extends EventTarget {
   }
 
   async disconnect() {
+    clearTimeout(this.offlineTimer);
+    this.offline = false;
     this.mgr.clearStoredSession();
     try { await this.mgr.sendDisconnect('user disconnected'); } catch {}
     this.relay?.cleanup?.();
